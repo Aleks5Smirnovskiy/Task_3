@@ -27,21 +27,42 @@ os.environ["MOZ_DISABLE_RDD_SANDBOX"] = "1"
 os.environ["MOZ_DISABLE_GMP_SANDBOX"] = "1"
 os.environ["MOZ_SANDBOX"] = "0"
 os.environ["MOZ_FORCE_DISABLE_E10S"] = "1"
-FIREFOX_BINARY_CANDIDATES = [
-    Path.cwd() / ".browsers" / "FirefoxESR_extracted" / "core" / "firefox.exe",
-    Path("C:/Program Files/Mozilla Firefox/firefox.exe"),
-]
-FIREFOX_BINARY_PATH = next(
-    (path for path in FIREFOX_BINARY_CANDIDATES if path.exists()),
-    FIREFOX_BINARY_CANDIDATES[-1]
-)
-GECKODRIVER_CANDIDATES = [
-    Path.cwd() / ".browsers" / "geckodriver-v0.36.0" / "geckodriver.exe",
-]
-GECKODRIVER_PATH = next(
-    (path for path in GECKODRIVER_CANDIDATES if path.exists()),
-    None
-)
+
+# Firefox ESR binary: auto-download and extract on first use if not present.
+# Firefox beta (system install) crashes with Selenium on restricted Windows environments;
+# ESR is stable and works with the sandbox-disabling env vars above.
+FIREFOX_ESR_DIR = PROJECT_TEMP_DIR / "FirefoxESR"
+FIREFOX_ESR_BIN = FIREFOX_ESR_DIR / "core" / "firefox.exe"
+
+
+def _ensure_firefox_esr() -> Path:
+    """Download and extract Firefox ESR if not already present."""
+    if FIREFOX_ESR_BIN.exists():
+        return FIREFOX_ESR_BIN
+
+    import subprocess
+    import tempfile
+
+    installer = PROJECT_TEMP_DIR / "FirefoxESRSetup.exe"
+    if not installer.exists():
+        print("\n[conftest] Downloading Firefox ESR...", flush=True)
+        esr_url = "https://download.mozilla.org/?product=firefox-esr-latest&os=win64&lang=en-US"
+        response = requests.get(esr_url, stream=True, timeout=120)
+        response.raise_for_status()
+        with open(installer, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+    print("[conftest] Extracting Firefox ESR...", flush=True)
+    FIREFOX_ESR_DIR.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["7z", "x", str(installer), f"-o{FIREFOX_ESR_DIR}", "-y"],
+        check=True, capture_output=True
+    )
+    return FIREFOX_ESR_BIN
+
+
+FIREFOX_BINARY_PATH = _ensure_firefox_esr()
 
 
 @pytest.fixture(params=["chrome", "firefox"])
@@ -86,7 +107,7 @@ def browser(request):
         options.set_preference("security.sandbox.content.level", 0)
         driver = webdriver.Firefox(
             service=FirefoxService(
-                str(GECKODRIVER_PATH) if GECKODRIVER_PATH else GeckoDriverManager().install(),
+                GeckoDriverManager().install(),
                 log_output=str(PROJECT_TEMP_DIR / "geckodriver.log"),
                 service_args=["--profile-root", str(firefox_profile_root)]
             ),
