@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+
+# Pytest / test artifacts
+.pytest_cache/
+allure-results/
+
+# webdriver-manager cache
+.wdm/
+
+# Temporary browser files
+.tmp/
+.browsers/
+
+# pip build artifacts
+pip-build-tracker-*/
+pip-ephem-wheel-cache-*/
+pip-install-*/
+tmp*/
+
+# IDE
+.vscode/
+*.idea/
+
+# Allure report (генерируется командой, не хранить в репо)
+allure-report/
+
+# Misc
+$dest/
